@@ -1,12 +1,12 @@
 ######################
 ## program controls
-load_ckpt_dir = 'b4_r0_m20_s200--2019-01-09--215705.861725'
-load_episode = 17000
+load_ckpt_dir = 'b1_r0_m20_s150--2019-03-04--132150.003907'
+load_episode = 3000
 
 # record_video = 0: eval over eval_episodes
 # record_video = 1: record a number of episodes (renders for each episode, so takes a long time!)
 # plays a small amount of games until
-record_video = 0
+record_video = 1
 
 # this part only applicable if record_video = 0
 eval_episodes = 1000 # choose nice, even numbers please
@@ -14,8 +14,8 @@ window = int(eval_episodes / 25)
 
 # this part only applicable if record_video = 1
 # set the number of videos for successful and failed runs that we want to record
-num_success = 10
-num_failure = 10 # failed episodes tend to be much longer than successful ones
+num_success = 5
+num_failure = 5 # failed episodes tend to be much longer than successful ones
 
 
 #TODO record agent actions and q-values during evaluation
@@ -302,7 +302,8 @@ def play_episode():
     episode_length = 0.
     episode_loss = 0.
     done = 0
-    success_flag = 1
+    #TODO success_flag doesn't work as intended, some videos classified as successful are not successes
+    success_flag = -1
 
     while (done == 0):
         # set exploration rate for this frame
@@ -321,15 +322,24 @@ def play_episode():
         episode_length += 1
         frame_count += 1
 
-        # stop the episode if it goes too long
-        if episode_length >= train_params['max_episode_length']:
-            reward = -100.
+        # check for success or failure from regular gameplay
+        if (done == 1):
+            if (reward > 0):
+                success_flag = 1
+
+            if (reward == 0):
+                success_flag = 0
+
+        # give a failure if the episode goes on too long
+        if (episode_length >= train_params['max_episode_length']):
+            reward = 0.0
             success_flag = 0
             done = True
 
         # end the episode
         if done:
             if record_video:
+                video_recorder.capture_frame()
                 video_recorder.close()
                 vid = mp.VideoFileClip(video_path)
 
@@ -338,7 +348,9 @@ def play_episode():
 
                 elif (success_flag == 0):
                     vid_failure.append(vid)
-
+                else:
+                    print('Success Flag Error')
+                    continue
             return episode_loss, episode_length, reward, epsilon
 
 ######################
@@ -350,6 +362,7 @@ num_UGV_red, num_UAV_red = count_team_units(env.get_team_red)
 num_UGV_blue, num_UAV_blue = count_team_units(env.get_team_blue)
 num_units = num_UGV_blue + num_UAV_blue
 print('Blue UGVs: {}\nBlue UAVs: {}\nRed UGVs: {}\nRed UAVs: {}'.format(num_UGV_blue, num_UAV_blue, num_UGV_red, num_UAV_red))
+#TODO print map size too
 
 # storage for training data
 ckpt_dir, data_dir, train_params, frame_count, step_list, reward_list, loss_list, epsilon_list = setup_data_storage(load_episode)
@@ -358,7 +371,7 @@ policy_red = policy.random_actions.PolicyGen(env.unwrapped.get_map, env.unwrappe
 env.reset(map_size = train_params['map_size'], policy_red = policy_red)
 
 # get fully observable state
-num_states = train_params['map_size']**2
+num_states = (2*train_params['vision_radius'] + 1)**2
 action_space = [0, 1, 2, 3, 4]
 num_actions = len(action_space)
 

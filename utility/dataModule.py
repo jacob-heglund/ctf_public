@@ -132,53 +132,6 @@ def one_hot_encoder_v2(state, agents, vision_radius=9, reverse=False):
 
     return oh_state
 
-def hindsight_encoder(trajectory):
-    #TODO only use the "trajectory" list as an input to the hindsight_encoder
-    # only append (state, action, reward, next_state, goal, done) to the replay buffer
-    # where state, next_state, and goal are one-hot versions
-
-    """
-    Description:
-    takes in a trajectory and converts the full map at each timestep to a modified map
-    where the goal (s') is always achieved by taking action a from state s
-
-    Args:
-        trajectory (list): list of tuples (state, action, reward, next_state, done, goal)
-        state (tuple): (full_map, one_hot_state, global position)
-        next_state (tuple): (full_map, one_hot_state, global position)
-        full_map (np.array): env._env, the full, pre-onehot map (makes it easier to place the pseudogoals)
-        one_hot_state (np.array): get_action(state, epsilon, env.get_team_blue)
-        global position (np.array): get by calling agent.get_loc(), 2d coordinates on the map
-    """
-
-    agent = env.get_team_blue
-    num_steps = len(trajectory)
-    # for each state achieved during the trajectory
-    # 1. get the agent's global state at each time-step of the trajectory (use agent.get_loc() to populate this in the state tuple during training)
-    for i in range(num_steps-1):
-        old_map = trajectory[i][0][0]
-        old_goal_global_position = np.where(old_map == TEAM2_FL)
-
-        # replace the old goal by enemy red-territory background
-        #TODO this won't work in general when enemies are introduced since they can cover the flag
-        old_map[old_goal_global_position] = TEAM2_BG
-        new_map = old_map
-
-        # get the agent's next global position. This is where we place the pseudogoal.
-        new_goal_global_position = trajectory[i+1][0][2]
-
-        # modify the world map with the enemy flag moved to the next state the agent reached (s') when they took action a in state s
-        new_map[new_goal_global_position] = TEAM2_FL
-
-        # TODO reward the agent appropriately for reaching the flag
-
-
-        # push new trajectories into the replay buffer
-        replay_buffer.push(state, action, reward, next_state, done, new_goal)
-
-
-
-
 
 # Debug
 def debug():

@@ -110,7 +110,7 @@ class CapEnv(gym.Env):
 
     def create_reward(self):
         """
-        Range (-100, 100)
+        Gives a binary reward for losing or winning the episode
 
         Parameters
         ----------
@@ -120,17 +120,17 @@ class CapEnv(gym.Env):
         reward = 0
 
         if self.blue_win:
-            return 100
+            return 1.0
         if self.red_win:
-            return -100
+            return 0.0
 
         # Dead enemy team gives .5/total units for each dead unit
-        for i in range(len(self.team_red)):
-            if not self.team_red[i].isAlive:
-                reward += (50.0 / len(self.team_red))
-        for i in range(len(self.team_blue)):
-            if not self.team_blue[i].isAlive:
-                reward -= (50.0 / len(self.team_blue))
+        # for i in range(len(self.team_red)):
+        #     if not self.team_red[i].isAlive:
+        #         reward += (50.0 / len(self.team_red))
+        # for i in range(len(self.team_blue)):
+        #     if not self.team_blue[i].isAlive:
+        #         reward -= (50.0 / len(self.team_blue))
 
         return reward
 
@@ -340,7 +340,6 @@ class CapEnv(gym.Env):
                          There are " + str(NUM_BLUE + NUM_UAV) + " entities.")
             move_list_blue = entities_action
 
-
         # Move team1
         for idx, act in enumerate(move_list_blue):
             if STOCH_TRANSITIONS and self.np_random.rand() < 0.1:
@@ -352,7 +351,6 @@ class CapEnv(gym.Env):
             if STOCH_TRANSITIONS and self.np_random.rand() < 0.1:
                 act = self.np_random.randint(0,len(self.ACTION))
             self.team_red[idx].move(self.ACTION[act], self._env, self.team_home)
-
 
         # Check for dead
         for entity in self.team_blue:

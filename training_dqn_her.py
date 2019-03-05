@@ -5,7 +5,7 @@ load_episode = 0 # set to 0 if not loading a checkpoint
 
 render = 0
 # training picks up at load_episode and runs until total_episodes
-total_episodes = 100000
+total_episodes = 3000
 
 if load_episode > total_episodes:
     print('Please set load_episode such that load_episode < total_episodes')
@@ -24,7 +24,7 @@ def setup_hyperparameters():
     ## game hyperparameters
     train_params['num_episodes'] = total_episodes
     # train_params['vision_radius'] = 4
-    train_params['vision_radius'] = 11
+    train_params['vision_radius'] = 30
 
     # train_params['map_size'] = 5
     # train_params['max_episode_length'] = 15
@@ -32,13 +32,16 @@ def setup_hyperparameters():
     # train_params['map_size'] = 10
     # train_params['max_episode_length'] = 100
 
-    train_params['map_size'] = 20
+    # train_params['map_size'] = 20
+    # train_params['max_episode_length'] = 150
+
+    train_params['map_size'] = 50
     train_params['max_episode_length'] = 150
 
     ## training hyperparameters
     train_params['epsilon_start'] = 1.0
     train_params['epsilon_final'] = 0.02
-    train_params['epsilon_decay'] = 150*5000 # play 5000 games with a 'high' chance of random action for better exploration
+    train_params['epsilon_decay'] = 150*1000 # play 5000 games with a 'high' chance of random action for better exploration
     train_params['gamma'] = 0.99 # future reward discount
     train_params['learning_rate'] = 10**-4
     train_params['batch_size'] = 50 # number of transitions to sample from replay buffer
@@ -50,10 +53,18 @@ def setup_hyperparameters():
     return train_params
 
 ######################
-## regular imports
+## built-in imports
 import sys
 import argparse
 import os
+import math
+import datetime
+import time
+from collections import deque
+import random
+import json
+
+## other imports
 import gym
 import numpy as np
 from numpy import shape
@@ -62,12 +73,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
-import math
-import datetime
-import time
-from collections import deque
-import random
-import json
 
 ## Pytorch
 import torch
@@ -159,6 +164,7 @@ def save_data(episode, step_list, reward_list, loss_list, epsilon_list):
     plt.savefig(fp, dpi=300)
     plt.close()
 
+
 def load_model(load_episode):
     '''
     Loads a model to continue training, or loads a new model for a new training run.
@@ -186,6 +192,7 @@ def load_model(load_episode):
         online_model.load_state_dict(load_model.state_dict())
         online_model = online_model.to(device)
     return online_model
+
 
 def setup_data_storage(load_episode):
     '''
@@ -288,6 +295,7 @@ def count_team_units(team_list):
             continue
     return num_UGV, num_UAV
 
+
 def format_state_for_action(state):
     '''
     Formats the raw input state for generating actions.
@@ -305,6 +313,7 @@ def format_state_for_action(state):
     s = torch.from_numpy(s).type(torch.FloatTensor).to(device).unsqueeze(0)
 
     return s
+
 
 def get_action(state, epsilon, team_list):
     '''
@@ -335,6 +344,7 @@ def get_action(state, epsilon, team_list):
 
     return action_list
 
+
 def epsilon_by_frame(frame_count):
     '''
     Generates random action probability based on the number of total frames that have passed.
@@ -349,6 +359,7 @@ def epsilon_by_frame(frame_count):
     epsilon_curr = train_params['epsilon_final'] + (train_params['epsilon_start'] - train_params['epsilon_final']) * math.exp(-1. * frame_count / train_params['epsilon_decay'])
 
     return epsilon_curr
+
 
 def train_online_model(batch_size):
     '''
@@ -397,7 +408,60 @@ def train_online_model(batch_size):
 
     return loss.item()
 
+
+def hindsight_encoder(trajectory):
+    """
+    Description:
+    takes a team's trajectory and converts the full map at each timestep to a modified map
+    where the goal (s') is always achieved by taking action a from state s
+
+    Args:
+        trajectory (list): list of transition tuples from the "real" episode (modified_state, action, reward, modified_next_state, done)
+            - modified_state (tuple): (full_map, one_hot_state, global_position)
+            - modified_next_state (tuple): (full_map, one_hot_state, global_position)
+                - full_map (np.array): env._env, the full map before onehot is applied
+                - one_hot_state (np.array): one_hot_encoder(env._env), state separated into channels for different features
+                - global_position (np.array): call agent.get_loc(), 2d coordinates on the map
+    """
+    # TODO implement for multiple agents too (collect the trajectories of each agent and do stuff here)
+
+    num_steps = len(trajectory)
+    # get the agent's global state at each time-step of the trajectory
+    #TODO set conditions so the enemy flag can't be placed in friendly territory
+    for i in range(num_steps-1):
+        map_curr = trajectory[i][0][0]
+
+        # change the map for current state
+        # replace the old goal by enemy red-territory background
+        #TODO this won't work in general when enemies are introduced since they can cover the flag
+        goal_global_position = np.where(map_curr == TEAM2_FL)
+        map_curr[goal_global_position] = TEAM2_BG
+        updated_map_curr = old_map_curr
+
+        # modify new_map with the enemy flag moved to the agent's next_state (global_position at time t+1)
+        new_goal_global_position = trajectory[i+1][0][2]
+        updated_map_curr[new_goal_global_position] = TEAM2_FL
+
+        # change the map for next_state
+        # remove the flag from it's actual position
+        # don't  place the flag since our agent would be covering it on the map
+        updated_map_next = trajectory[i+1][0][0]
+        updated_map_next[goal_global_position] = TEAM2_BG
+
+        # reward the agent appropriately for reaching the flag
+        reward = 1.0
+        #TODO you forgot to add done = 1!!!
+        done = 1
+        # set state and next_state as the one-hot encoded versions of the maps
+        state = one_hot_encoder(updated_map_curr, env.get_team_blue, vision_radius = train_params['vision_radius'])
+        next_state = one_hot_encoder(updated_map_next, env.get_team_blue, vision_radius = train_params['vision_radius'])
+
+        # push new trajectories into the replay buffer
+        replay_buffer.push(state, action, reward, next_state, done)
+
+
 def play_episode():
+    #TODO fix for multi-agent case
     '''
     Plays a single episode of the sim
 
@@ -410,7 +474,7 @@ def play_episode():
 
     global frame_count
     env.reset(map_size = train_params['map_size'], policy_red = policy_red)
-
+    trajectory = []
     episode_length = 0.
     episode_loss = 0.
     done = 0
@@ -418,32 +482,38 @@ def play_episode():
     while (done == 0):
         if render:
             env.render()
-        # set exploration rate for this frame
         epsilon = epsilon_by_frame(frame_count)
-        env.render()
-        # state consists of the centered observations of each agent
-        state = one_hot_encoder(env._env, env.get_team_blue, vision_radius = train_params['vision_radius'])
-        # TODO append global position to the state
 
-        # action is a list containing the actions for each agent
-        action = get_action(state, epsilon, env.get_team_blue)
+        # get state, which consists of the centered observations of each agent
+        full_map = env._env
+        state = one_hot_encoder(env._env, env.get_team_blue, vision_radius = train_params['vision_radius'])
+        global_position = blue_team[0].get_loc()
+        modified_state = (full_map, state, global_position)
+
+        # get action, which is a list containing the actions taken by each agent
+        action = get_action(state, epsilon,env.get_team_blue)
 
         _ , reward, done, _ = env.step(entities_action = action)
-        reward = reward / 100.
 
+        full_map = env._env
         next_state = one_hot_encoder(env._env, env.get_team_blue, vision_radius = train_params['vision_radius'])
-        #TODO append global position to the state
+        global_position = blue_team[0].get_loc()
+        modified_next_state = (full_map, next_state, global_position)
 
         episode_length += 1
         frame_count += 1
-
+        #TODO weird shit is happening with the reward
         # set Done flag if episode goes for too long without reaching the flag
         if episode_length >= train_params['max_episode_length']:
-            reward = -100. / 100.
+            reward = 0.0
             done = True
 
         # store the transition in replay buffer
         replay_buffer.push(state, action, reward, next_state, done)
+
+        # store modified tuple for hindsight experience replay
+        hindsight_transition_tuple = (modified_state, action, reward, modified_next_state, done)
+        trajectory.append(hindsight_transition_tuple)
 
         # train the network
         if len(replay_buffer) > train_params['replay_buffer_init']:
@@ -455,11 +525,15 @@ def play_episode():
         if done:
             return episode_loss, episode_length, reward, epsilon
 
+
 ######################
 ## setup for training
 # init environment
 env_id = 'cap-v0'
 env = gym.make(env_id)
+
+blue_team = env.get_team_blue
+red_team = env.get_team_red
 
 num_UGV_red, num_UAV_red = count_team_units(env.get_team_red)
 num_UGV_blue, num_UAV_blue = count_team_units(env.get_team_blue)

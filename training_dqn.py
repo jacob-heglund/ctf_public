@@ -5,7 +5,7 @@ load_episode = 0 # set to 0 if not loading a checkpoint
 
 render = 0
 # training picks up at load_episode and runs until total_episodes
-total_episodes = 100000
+total_episodes = 3000
 
 if load_episode > total_episodes:
     print('Please set load_episode such that load_episode < total_episodes')
@@ -24,15 +24,21 @@ def setup_hyperparameters():
     ## game hyperparameters
     train_params['num_episodes'] = total_episodes
     # train_params['vision_radius'] = 4
-    train_params['vision_radius'] = 11
+    train_params['vision_radius'] = 30
 
     # train_params['map_size'] = 5
     # train_params['max_episode_length'] = 15
 
+    # train_params['map_size'] = 8
+    # train_params['max_episode_length'] = 100
+
     # train_params['map_size'] = 10
     # train_params['max_episode_length'] = 100
 
-    train_params['map_size'] = 20
+    # train_params['map_size'] = 20
+    # train_params['max_episode_length'] = 150
+
+    train_params['map_size'] = 50
     train_params['max_episode_length'] = 150
 
     ## training hyperparameters
@@ -262,7 +268,7 @@ def setup_data_storage(load_episode):
 ######################
 # RL functions
 #TODO have get_action, epsilon_by_frame, and train_online_model as functions in the RL algorithm class
-#NOTE this cannot be easily done, for pytorch to save the model, the DQN class can only have init and forward functions
+#NOTE this cannot be easily done. for pytorch to save the model as a model object, the DQN class can only have init and forward functions
 #TODO workaround: have a separate module for each algorithm
 
 def count_team_units(team_list):
@@ -427,14 +433,15 @@ def play_episode():
         action = get_action(state, epsilon, env.get_team_blue)
 
         _ , reward, done, _ = env.step(entities_action = action)
-        reward = reward / 100.
+
+        # reward = reward / 100.
         next_state = one_hot_encoder(env._env, env.get_team_blue, vision_radius = train_params['vision_radius'])
         episode_length += 1
         frame_count += 1
 
         # set Done flag if episode goes for too long without reaching the flag
         if episode_length >= train_params['max_episode_length']:
-            reward = -100. / 100.
+            reward = 0.0
             done = True
 
         # store the transition in replay buffer

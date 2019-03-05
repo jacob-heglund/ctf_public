@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 from collections import deque
 import random
+#TODO change filename to utilityDQN
 ###############################
 ## other functions
 def cnn_output_size(w, k, p, s):
@@ -39,7 +40,7 @@ class DQN(nn.Module):
 
     def forward(self, state):
         '''
-        Propogates the state through the neural network to get q-values for each action
+        Propagates the state through the neural network to get q-values for each action
 
         Args:
             state (torch tensor): array of integers representing the grid-world with shape (batch_size, num_channels, num_agents, map_x, map_y)

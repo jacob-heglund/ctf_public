@@ -1,0 +1,3 @@
+have upper controller and lower controller w/ different concepts of state
+upper- number of enemies, flag positions, "high level info"
+lower - actual observations
