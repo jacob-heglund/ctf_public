@@ -103,7 +103,7 @@ class PolicyGen:
             action = 4
         elif self.flag_location[1] > y+1:
             action = 3
-        elif self.flag_location[1] < y-1:
+        elif self.flag_location[1] < y-f1:
             action = 1
 
         if self.random.random() < self.exploration:

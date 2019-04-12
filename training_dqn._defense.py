@@ -23,6 +23,7 @@ def setup_hyperparameters():
     train_params = {}
     ## game hyperparameters
     train_params['num_episodes'] = total_episodes
+    # train_params['vision_radius'] = 4
     train_params['vision_radius'] = 30
 
     # train_params['map_size'] = 5
@@ -34,21 +35,16 @@ def setup_hyperparameters():
     # train_params['map_size'] = 10
     # train_params['max_episode_length'] = 100
 
-    # train_params['map_size'] = 20
+    train_params['map_size'] = 20
+    train_params['max_episode_length'] = 1000
+
+    # train_params['map_size'] = 50
     # train_params['max_episode_length'] = 150
 
-    train_params['map_size'] = 50
-    train_params['max_episode_length'] = 150
-
     ## training hyperparameters
-    train_params['network_architecture'] = 'DQN'
-
-    # currently supported: roomba, random, stay_still
-    train_params['enemy_policy'] = 'random'
-
     train_params['epsilon_start'] = 1.0
     train_params['epsilon_final'] = 0.02
-    train_params['epsilon_decay'] = 150*5000 # play 5000 games with a 'high' chance of random action for better exploration
+    train_params['epsilon_decay'] = 150*500 # play 5000 games with a 'high' chance of random action for better exploration
     train_params['gamma'] = 0.99 # future reward discount
     train_params['learning_rate'] = 10**-4
     train_params['batch_size'] = 50 # number of transitions to sample from replay buffer
@@ -224,7 +220,7 @@ def setup_data_storage(load_episode):
         num_red_UGV, _ = count_team_units(env.get_team_red)
         map_size = train_params['map_size']
         step = train_params['max_episode_length']
-        map_params_str = train_params['network_architecture'] + '_b' + str(num_blue_UGV) + '_r' + str(num_red_UGV) + '_m' + str(map_size) + '_s' + str(step) + '--'
+        map_params_str = 'b' + str(num_blue_UGV) + '_r' + str(num_red_UGV) + '_m' + str(map_size) + '_s' + str(step) + '--'
         time_str = str(time).replace(' ', '--').replace(':', '')
 
         ckpt_dir = './data/' + map_params_str + time_str
@@ -437,16 +433,24 @@ def play_episode():
         # action is a list containing the actions for each agent
         action = get_action(state, epsilon, env.get_team_blue)
 
-        _ , reward, done, _ = env.step(entities_action = action)
+        _, reward, done, _ = env.step(entities_action = action)
 
-        # reward = reward / 100.
         next_state = one_hot_encoder(env._env, env.get_team_blue, vision_radius = train_params['vision_radius'])
         episode_length += 1
         frame_count += 1
 
+        # for defensive agent, give reward for lasting longer (the longer it lasts, the more reward per timestep)
+        #TODO Switch to episode based, where rewards are calculated after the episode
+        # (EX: reward(t) =  t, where t is the frame of the episode, and tf is the total episode length)
+        # Idea: want to reward lasting longer, but ONLY if the blue flag isn't captured
+        # r(t) =
+        # t (only if blue flag not captured at the end)
+        # 0 (if blue flag captured at the end)
+        # Isn't this basically throwing away episodes where we don't win?
+        # Is that a bad thing for training?
+
         # set Done flag if episode goes for too long without reaching the flag
         if episode_length >= train_params['max_episode_length']:
-            reward = 0.0
             done = True
 
         # store the transition in replay buffer
@@ -478,18 +482,9 @@ map_str = 'Map Size: {}x{}\nMax Frames per Episode: {}\n'.format(train_params['m
 agent_str = 'Blue UGVs: {}\nBlue UAVs: {}\nRed UGVs: {}\nRed UAVs: {}'.format(num_UGV_blue, num_UAV_blue, num_UGV_red, num_UAV_red)
 print(map_str + agent_str)
 
-# choose enemy policy
-if train_params['enemy_policy'] == 'roomba':
-    policy_red = policy.roomba.PolicyGen(env.get_map, env.get_team_red)
-elif train_params['enemy_policy'] == 'stay_still':
-    policy_red = policy.stay_still.PolicyGen(env.get_map, env.get_team_red)
-elif train_params['enemy_policy'] == 'random':
-    policy_red = policy.random_actions.PolicyGen(env.get_map, env.get_team_red)
-else:
-    print('Invalid enemy policy, stopping program execution')
-    sys.exit()
-print('Enemy Policy: ' + train_params['enemy_policy'])
-
+policy_red = policy.roomba.PolicyGen(env.get_map, env.get_team_red)
+# policy_red = policy.stay_still.PolicyGen(env.get_map, env.get_team_red)
+# policy_red = policy.random_actions.PolicyGen(env.get_map, env.get_team_red)
 env.reset(map_size = train_params['map_size'], policy_red = policy_red)
 
 # init replay buffer
@@ -499,6 +494,7 @@ replay_buffer = ReplayBuffer(train_params['replay_buffer_capacity'])
 num_obsv_states = (train_params['vision_radius']*2 + 1)**2
 action_space = [0, 1, 2, 3, 4]
 num_actions = len(action_space)
+
 
 # setup neural net
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

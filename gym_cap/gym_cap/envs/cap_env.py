@@ -120,9 +120,9 @@ class CapEnv(gym.Env):
         reward = 0
 
         if self.blue_win:
-            return 1.0
-        if self.red_win:
             return 0.0
+        if self.red_win:
+            return -1.0
 
         # Dead enemy team gives .5/total units for each dead unit
         # for i in range(len(self.team_red)):
