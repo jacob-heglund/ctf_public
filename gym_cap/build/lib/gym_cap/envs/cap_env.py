@@ -7,7 +7,6 @@ from gym.utils import seeding
 import numpy as np
 
 from .agent import *
-from .const import *
 from .create_map import CreateMap
 
 """
@@ -32,13 +31,7 @@ class CapEnv(gym.Env):
         self    : object
             CapEnv object
         """
-        self.num_blue_ugv = NUM_BLUE
-        self.num_blue_uav = NUM_UAV
-        self.num_red_ugv = NUM_RED
-        self.num_red_uav = NUM_UAV
-        self.num_grey = NUM_GRAY
-
-        self.seed()
+        self.seed(  )
         self.reset(map_size, mode=mode)
         self.viewer = None
         if STOCH_ATTACK:
@@ -55,11 +48,10 @@ class CapEnv(gym.Env):
 
         """
 
-        map_obj = [self.num_blue_ugv, self.num_blue_uav, self.num_red_ugv, self.num_red_uav, self.num_grey]
         if map_size is None:
-            self._env, self.team_home = CreateMap.gen_map('map', dim=self.map_size[0], rand_zones=STOCH_ZONES, np_random=self.np_random, map_obj=map_obj)
+            self._env, self.team_home = CreateMap.gen_map('map', dim=self.map_size[0], rand_zones=STOCH_ZONES)
         else:
-            self._env, self.team_home = CreateMap.gen_map('map', map_size, rand_zones=STOCH_ZONES, np_random=self.np_random, map_obj=map_obj)
+            self._env, self.team_home = CreateMap.gen_map('map', map_size, rand_zones=STOCH_ZONES)
 
         self.map_size = (len(self._env), len(self._env[0]))
 
@@ -118,7 +110,7 @@ class CapEnv(gym.Env):
 
     def create_reward(self):
         """
-        Range (-100, 100)
+        Gives a binary reward for losing or winning the episode
 
         Parameters
         ----------
@@ -128,17 +120,17 @@ class CapEnv(gym.Env):
         reward = 0
 
         if self.blue_win:
-            return 100
+            return 0.0
         if self.red_win:
-            return -100
+            return -1.0
 
         # Dead enemy team gives .5/total units for each dead unit
-        for i in range(len(self.team_red)):
-            if not self.team_red[i].isAlive:
-                reward += (50.0 / len(self.team_red))
-        for i in range(len(self.team_blue)):
-            if not self.team_blue[i].isAlive:
-                reward -= (50.0 / len(self.team_blue))
+        # for i in range(len(self.team_red)):
+        #     if not self.team_red[i].isAlive:
+        #         reward += (50.0 / len(self.team_red))
+        # for i in range(len(self.team_blue)):
+        #     if not self.team_blue[i].isAlive:
+        #         reward -= (50.0 / len(self.team_blue))
 
         return reward
 
@@ -287,7 +279,7 @@ class CapEnv(gym.Env):
                         n_friends += 1
                     elif entity.team == TEAM2_BACKGROUND and self._env[locx][locy] == TEAM2_UGV:
                         n_friends += 1
-        if flag and self.np_random.rand() > n_friends/(n_friends + n_enemies):
+        if flag and np.random.rand() > n_friends/(n_friends + n_enemies):
 
             entity.isAlive = False
             self._env[loc] = DEAD
@@ -308,8 +300,6 @@ class CapEnv(gym.Env):
         """
         Takes one step in the cap the flag game
 
-
-
         :param
             entities_action: contains actions for entity 1-n
             cur_suggestions: suggestions from rl to human
@@ -324,10 +314,9 @@ class CapEnv(gym.Env):
         """
 
         move_list = []
-
         # Get actions from uploaded policies
         try:
-            move_list_red = self.policy_red.gen_action(self.team_red,self.observation_space_red,free_map=self.team_home)
+            move_list_red = self.policy_red.gen_action(self.team_red,self.observation_space_red, free_map=self.team_home)
         except:
             print("No valid policy for red team")
             exit()
@@ -351,7 +340,6 @@ class CapEnv(gym.Env):
                          There are " + str(NUM_BLUE + NUM_UAV) + " entities.")
             move_list_blue = entities_action
 
-
         # Move team1
         for idx, act in enumerate(move_list_blue):
             if STOCH_TRANSITIONS and self.np_random.rand() < 0.1:
@@ -363,7 +351,6 @@ class CapEnv(gym.Env):
             if STOCH_TRANSITIONS and self.np_random.rand() < 0.1:
                 act = self.np_random.randint(0,len(self.ACTION))
             self.team_red[idx].move(self.ACTION[act], self._env, self.team_home)
-
 
         # Check for dead
         for entity in self.team_blue:
@@ -477,7 +464,6 @@ class CapEnv(gym.Env):
     #     if self.viewer is not None:
     #         self.viewer.close()
     #         self.viewer = None
-
 
 # Different environment sizes and modes
 # Random modes

@@ -1,0 +1,116 @@
+https://campuscluster.illinois.edu/resources/docs/user-guide/
+https://campuscluster.illinois.edu/resources/docs/user-guide/#projects
+
+###########################################
+Useful commands for the cluster terminal:
+Check installed modules:
+module avail
+
+Check storage (each user has 2 GB soft limit, 4 GB hard limit for storage.  If above 2 GB, you have 7 days to delete files and get below)
+
+quota
+
+Check status of jobs:
+qstat -u MY_NETID
+Q: job in queue
+R: job running
+C: job complete
+
+Delete Job:
+qdel JOB_ID
+
+Check job status
+qstat grep | jheglun2
+
+
+Check max walltime for your queue:
+qstat -q eng-research (48 hours max for these queues)
+
+###########################################
+# Batch job
+Log in to the cluster.
+
+Copy over any relevant files.
+
+Run 'generate_pbs.py' with the appropriate changes for the job you're running.
+
+Type the following command:
+qsub run.pbs
+
+###########################################
+An interactive job allows you to see the output of your code in the terminal.  It's like running the code on your computer, but with (potentially) better hardware.  You must maintain a network connection during the entire job, otherwise your code will stop running.
+
+If running interactive jobs, get on a compute node by running a qsub command:
+Ex:
+qsub -I -e -o -m be -q eng-research -l walltime=04:00:00,nodes=1:ppn=16:P100
+
+Command Explanation:
+-I: you want an interactive job
+
+-e: create an err1or file after the program finishes
+
+-o: create an output file after the program finishes
+
+-m be: send email at beginning and end of job
+
+-q: specify the type of node you want to run on
+eng-research: CPU, RAM, and GPU
+
+-l: set walltime and node stuff
+walltime=00:30:00,nodes=1:ppn=16:GPU_NAME
+
+nodes = {1,2,....}
+cores per node = {16, 20, 24, 28}
+GPU_NAME = {TeslaM2090, TeslaK40M, K80, P100}
+
+###########################################
+Once on the interactive node, load up relevant modules
+module load python/3
+module load anaconda/3
+module load cuda/9.2
+
+# activate your conda env
+source activate /projects/tran-research-group/jheglun2
+
+###########################################
+Copy over your relevant files that you want to run.
+
+Now you're ready to run code in an interactive job.
+
+###########################################
+I installed all my python libraries under a conda environment. See explanation below.
+NOTE: If you just install python libraries to your conda env directly, it eat up your limited 2 GB of storage space very quickly.  To remedy this, you must install your libraries in /projects/tran-research-group/NETID.  This is part of the group storage, and doesn't count toward your personal storage quota.
+
+Install your libraries by doing the following:
+- log in to the campus cluster
+
+- on the login node (you don't need an interactive job to install libraries), load the python, conda, and cuda modules (see above)
+
+-
+- We don't want the python libraries will be installed in default the default location
+/home/NETID/.conda/envs/MY_ENV
+
+- Instead, we want to install them in:
+/projects/tran-research-group/MY_NETID/
+
+- do this by first making a new conda environment with whatever name you want
+conda create --prefix /projects/tran-research-group/MY_NETID
+NOTE: You can't choose the name of the environment using this method, the environment  name will simply be the path /projects/tran-research-group/MY_NETID.  This isn't ideal, but it works good enough.
+
+- activate the environment
+conda activate /projects/tran-research-group/MY_NETID
+
+- you can now install all necessary libraries using pip install and conda install commands
+
+
+Install all your libraries in a conda virtual environment, see details here https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html
+
+Match this conda environment to your own computer so they have the same versions of the libraries.  I used pip freeze to get a list of the installed libraries on my computer.  Otherwise, my core libraries used are included below, along with the commands needed to install them on the cluster
+
+pip install gym --user
+conda install -c anaconda numpy
+conda install -c conda-forge matplotlib
+conda install -c anaconda pandas
+conda install pytorch torchvision cudatoolkit=9.0 -c pytorch
+conda install -c anaconda setuptools
+

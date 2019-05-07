@@ -1,12 +1,10 @@
-
-
 # TeamConst
 """ Defining the constants for agents and teams """
 RED = 10
 BLUE = 50
 GRAY = 90
-NUM_BLUE = 1
-NUM_RED = 0
+NUM_BLUE = 4
+NUM_RED = 4
 NUM_UAV = 0
 NUM_GRAY = 0
 UAV_STEP = 3
@@ -18,7 +16,6 @@ UGV_A_RANGE = 2
 
 # Model
 RL_SUGGESTIONS = False
-
 STOCH_TRANSITIONS = False
 STOCH_ATTACK = False
 STOCH_ZONES = False
@@ -37,6 +34,9 @@ STOCH_ZONES = False
 # #OBSTACLE = 100
 # AERIAL_DENIAL = 90
 
+
+# TEAM1: blue team
+# TEAM2: red team
 SUGGESTION = -5
 BLACK = -2
 UNKNOWN = -1
